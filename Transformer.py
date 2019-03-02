@@ -58,3 +58,19 @@ class EmbeddingLayer(keras.layers.Layer):
   
   def call(self, inputs):
     return tf.reduce_sum(tf.gather(self.we, inputs), 2)
+  
+def dropout(input_tensor, dropout_prob, train):
+    """
+      Perform dropout.
+      Args:
+        input_tensor: inpout tensor.
+        dropout_prob: the probability of dropping out a value
+        
+      Returns:
+        A version of `input_tensor` with dropout applied.
+    """
+    if not train or dropout_prob is None or dropout_prob == 0.0:
+        return input_tensor
+
+    output = tf.nn.dropout(input_tensor, 1.0 - dropout_prob)
+    return output
