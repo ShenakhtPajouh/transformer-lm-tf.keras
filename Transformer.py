@@ -47,3 +47,6 @@ class Transformer(Model):
     logits = tf.reshape(tf.matmul(hidden, we[:self.n_vocab, :], transpose_b = True), [-1, self.n_ctx, self.n_vocab])
     logits_truncated = tf.reshape(logits[:, :-1], [-1, self.n_vocab])
     losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits = lm_logits_truncated, labels = tf.reshape(tokens[:, 1:, 0], [-1]))
+    losses = tf.reshape(losses, [shape_list(tokens)[0], shape_list(tokens)[1] - 1])
+    losses = tf.reduce_sum(losses * mask[:, 1:], 1) / tf.reduce_sum(mask[:, 1:], 1)
+    return logits, losses
