@@ -50,3 +50,11 @@ class Transformer(Model):
     losses = tf.reshape(losses, [shape_list(tokens)[0], shape_list(tokens)[1] - 1])
     losses = tf.reduce_sum(losses * mask[:, 1:], 1) / tf.reduce_sum(mask[:, 1:], 1)
     return logits, losses
+
+class EmbeddingLayer(keras.layers.Layer):
+  def __init__(self, name, n_vocab, n_ctx = 128, n_embd = 768, stddev = 0.02, trainable = True):
+    super().__init__(name = name, trainable = trainable)
+    self.we = self.add_weight(name = name, shape = (n_vocab + n_ctx, n_embd), initializer = tf.random_normal_initializer(stddev = stddev))
+  
+  def call(self, inputs):
+    return tf.reduce_sum(tf.gather(self.we, inputs), 2)
