@@ -111,7 +111,7 @@ class TextEncoder(object):
                 
         return texts_tokens
         
-    def encode_dataset(*splits, encoder):
+def encode_dataset(*splits, encoder):
     encoded_splits = []
     for split in splits[0]:
         fields = []
