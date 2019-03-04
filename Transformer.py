@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import Model, Sequential,
@@ -124,9 +125,9 @@ class Block(Model):
         self.resid_pdrop = resid_pdrop
 
         self.attn = Attention("/attn")
-        self.norm1 = Norm("/ln_1")
+        self.norm1 = Attention("/ln_1")
         self.mlp = MLP("/mlp", afn, resid_pdrop)
-        self.norm2 = Norm("/ln_2")
+        self.norm2 = Attention("/ln_2")
 
     def call(self, inputs, train, scale=False):
         nx = shape_list(inputs)[-1]
@@ -157,6 +158,9 @@ class MLP(Model):
 ########################################################################################################################
 
 class Conv1D(Layer):
+    """
+    nx = shape_list(x)[-1]
+    """
 
     def __init__(self, nx, nf, rf, **kwargs):
         self.nx = nx
@@ -170,7 +174,7 @@ class Conv1D(Layer):
         self.b = self.add_weight(name="b", shape=[self.nf], initializer=tf.keras.initializers.constant(0))
         super(Conv1D, self).build(input_shape=input_shape)
 
-    def call(self, inputs,**kwargs):
+    def call(self, inputs, **kwargs):
         if self.rf == 1:
             c = tf.reshape(tf.matmul(tf.reshape(inputs, [-1, self.nx]), tf.reshape(self.w, [-1, self.nf])) + self.b,
                            shape_list(inputs)[:-1] + [self.nf])
@@ -180,3 +184,105 @@ class Conv1D(Layer):
 
     def compute_output_shape(self, input_shape):
         return super(Conv1D, self).compute_output_shape(input_shape)
+
+
+class Norm(Layer):
+    """
+    n_state = shape_list(x)[-1]
+    """
+
+    def __init__(self, n_state, **kwargs):
+        self.n_state = n_state
+        super().__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.g = self.add_weight(name='g', shape=[self.n_state], dtype=tf.float32,
+                                 initializer=tf.keras.initializers.constant(1))
+        self.b = self.add_weight(name="b", shape=[self.n_state], initializer=tf.keras.initializers.constant(0))
+        super(Norm, self).build(input_shape=input_shape)
+
+    def call(self, inputs, **kwargs):
+        return self._norm(inputs, self.g, self.b, axis=[-1])
+
+    def _norm(self, x, g=None, b=None, e=1e-5, axis=[1]):
+        u = tf.reduce_mean(x, axis=axis, keepdims=True)
+        s = tf.reduce_mean(tf.square(x - u), axis=axis, keepdims=True)
+        x = (x - u) * tf.rsqrt(s + e)
+        if g is not None and b is not None:
+            x = x * g + b
+        return x
+
+    def compute_output_shape(self, input_shape):
+        return super(Norm, self).compute_output_shape(input_shape)
+
+
+class Attention(Layer):
+    """
+    nx = shape_list(x)[-1]
+    where x in inputs argm of call
+    """
+
+    def __init__(self,nx, n_state, n_head, scale=False, **kwargs):
+        self.nx = nx
+        self.n_state = n_state
+        self.n_head = n_head
+        self.scale = scale
+        super().__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.conv1d_c = Conv1D(nx=self.nx,nf=self.n_state*3,rf=1)
+        self.conv1d_a = Conv1D(nx=self.nx,nf=self.n_state,rf=1)
+        super(Attention, self).build(input_shape=input_shape)
+
+    def call(self, inputs, resid_pdrop=0.1, training=False):
+        c = self.conv1d_c(inputs)
+        q, k, v = tf.split(c, 3, 2)
+        q = self.split_heads(q, self.n_head)
+        k = self.split_heads(k, self.n_head, k=True)
+        v = self.split_heads(v, self.n_head)
+        a = self._attn(q, k, v, train=training, scale=self.scale)
+        a = self.merge_heads(a)
+        a = self.conv1d_a(a)
+        a = dropout(a, resid_pdrop, training)
+        return a
+
+    def split_states(self, x, n):
+        x_shape = shape_list(x)
+        m = x_shape[-1]
+        new_x_shape = x_shape[:-1] + [n, m // n]
+        return tf.reshape(x, new_x_shape)
+
+    def merge_states(self, x):
+        x_shape = shape_list(x)
+        new_x_shape = x_shape[:-2] + [np.prod(x_shape[-2:])]
+        return tf.reshape(x, new_x_shape)
+
+    def split_heads(self, x, n, k=False):
+        if k:
+            return tf.transpose(self.split_states(x, n), [0, 2, 3, 1])
+        else:
+            return tf.transpose(self.split_states(x, n), [0, 2, 1, 3])
+
+    def merge_heads(self, x):
+        return self.merge_states(tf.transpose(x, [0, 2, 1, 3]))
+
+    def mask_attn_weights(self, w):
+        n = shape_list(w)[-1]
+        b = tf.matrix_band_part(tf.ones([n, n]), -1, 0)
+        b = tf.reshape(b, [1, 1, n, n])
+        w = w * b + -1e9 * (1 - b)
+        return w
+
+    def _attn(self, q, k, v, attn_pdrop=0.1, train=False, scale=False):
+        w = tf.matmul(q, k)
+        if scale:
+            n_state = shape_list(v)[-1]
+            w = w * tf.rsqrt(tf.cast(n_state, tf.float32))
+        w = self.mask_attn_weights(w)
+        w = tf.nn.softmax(w)
+        w = dropout(w, attn_pdrop, train)
+        a = tf.matmul(w, v)
+        return a
+
+    def compute_output_shape(self, input_shape):
+        return super(Attention, self).compute_output_shape(input_shape)
