@@ -117,13 +117,18 @@ def encode_dataset(*splits, encoder):
         fields = []
         for field in split:
             if isinstance(field[0], str):
-                field = encoder.encode(field)
+                field = encoder(field)
             fields.append(field)
         encoded_splits.append(fields)
     return encoded_splits
 
-def transform_texts(encoder, texts, n_ctx, n_vocab):
-    tokens = encder.encode(texts, verbose = False)
+def transform_texts(texts, n_ctx, n_vocab, encoder = None):
+    if encoder == None:
+        ENCODER_PATH = 'model/encoder_bpe_40000.json'
+        BPE_PATH = 'model/vocab_40000.bpe'
+        encoder = extEncoder(ENCODER_PATH, BPE_PATH)
+        
+    tokens = encoder(texts, verbose = False)
     n_batch = len(tokens)
     
     inputs = np.zeros((n_batch, n_ctx, 2), dtype = np.int32)
