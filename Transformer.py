@@ -7,9 +7,29 @@ from tensorflow.python.layers.base import Layer
 from Utils import shape_list
 
 def gelu(x):
+    """
+    Gaussian Error Linear Unit.
+    This is a smoother version of the RELU.
+    Original paper: https://arxiv.org/abs/1606.08415
+    
+    Args:
+      input_tensor: float Tensor to perform activation.
+    Returns:
+      `input_tensor` with the GELU activation applied.
+    """
     return 0.5 * x * (1 + tf.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * tf.pow(x, 3))))
   
 def swish(x):
+    """
+    Swish tends to work better than ReLU on deeper models across a number of challenging data sets.
+    For further information:
+    medium.com/@neuralnets/swish-activation-function-by-google-53e1ea86f820
+    
+    Args:
+      input_tensor: float Tensor to perform activation.
+    Returns:
+      `input_tensor` with the swish activation applied.
+    """
     return x * tf.nn.sigmoid(x)
 
 act_fns = {
@@ -181,10 +201,13 @@ class Block(Model):
             n_vocab: Size of the vocabulary
             n_ctx: Size of the context
             n_embd: Embeddings dimension
+            n_layer: Number of the transformer blocks
             n_head: Number of attention heads
-            embd_pdrop: The dropout probability for embedding layers
             attn_pdrop: The dropout probability for attention layer
-            resid_pdrop: ?
+            resid_pdrop: The dropout probability for ?
+            afn: The non-linear activation function in MLP
+            train: It is a boolean which is true for training model, false for eval model (to control dropout)
+            scale: ?
         """
         super().__init__(name=name)
         self.n_vocab = n_vocab
@@ -227,6 +250,7 @@ class Transformer(Model):
           This is the transformer model in
           'https://s3-us-west-2.amazonaws.com/openai-assets/research-covers/language-unsupervised/language_understanding_paper.pdf'
           fine-tuned for language-model
+          
           Args:
             name: The name of the model
             n_vocab: Size of the vocabulary
@@ -236,8 +260,10 @@ class Transformer(Model):
             n_head: Number of attention heads
             embd_pdrop: The dropout probability for embedding layers
             attn_pdrop: The dropout probability for attention layer
-            resid_pdrop: ?
-            afn: non linearity function name
+            resid_pdrop: The dropout probability for ?
+            afn: The non-linear activation function in MLP
+            train: It is a boolean which is true for training model, false for eval model (to control dropout)
+            scale: ?
         """
         super().__init__(name=name)
         self.n_vocab = n_vocab
