@@ -237,8 +237,11 @@ class EmbeddingLayer(keras.layers.Layer):
         self.n_ctx = n_ctx
         self.n_embd = n_embd
         self.stddev = stddev
-        self.we = self.add_weight(name = name, shape = (self.n_ctx + self.n_vocab, self.n_embd),
+    
+    def build(self, input_shape):
+        self.we = self.add_weight(name = "we", shape = (self.n_ctx + self.n_vocab, self.n_embd),
                                   initializer = tf.random_normal_initializer(stddev=self.stddev))
+        super(EmbeddingLayer, self).build(input_shape = input_shape)
         
     def call(self, inputs):
         return tf.reduce_sum(tf.gather(self.we, inputs), 2)
@@ -276,12 +279,12 @@ class Transformer(Model):
         self.afn = afn
         self.train = train
         self.scale = scale
-        self.embed = EmbeddingLayer("we", n_vocab, n_ctx, n_embd)
+        self.embed = EmbeddingLayer("embedding", n_vocab, n_ctx, n_embd)
 
         self.transformer_stack = Sequential()
         for layer in range(n_layer):
             self.transformer_stack.add(
-                Block("h%d" % layer, n_vocab, n_ctx, n_embd, n_head, attn_pdrop, resid_pdrop, afn, train, scale))
+                Block("h", n_vocab, n_ctx, n_embd, n_head, attn_pdrop, resid_pdrop, afn, train, scale))
 
     def call(self, inputs):
         tokens = tf.reshape(inputs[0], [-1, self.n_ctx, 2])
