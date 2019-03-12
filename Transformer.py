@@ -54,17 +54,21 @@ def dropout(input_tensor, dropout_prob, train):
     output = tf.nn.dropout(input_tensor, 1.0 - dropout_prob)
     return output
 
-class Norm(Layer):
+class Norm(Model):
     """
     n_state = shape_list(x)[-1]
     """
 
     def __init__(self, name, n_state, **kwargs):
-        super().__init__(name, **kwargs)
+        super().__init__(name = name, **kwargs)
         self.n_state = n_state
+        
+    def build(self, input_shape):
         self.g = self.add_weight(name = 'g', shape=[self.n_state], dtype=tf.float32,
                                  initializer=tf.keras.initializers.constant(1))
-        self.b = self.add_weight(name = "b", shape=[self.n_state], initializer=tf.keras.initializers.constant(0))
+        self.b = self.add_weight(name = "b", shape=[self.n_state], dtype=tf.float32, 
+                                 initializer=tf.keras.initializers.constant(0))
+        super(Norm, self).build(input_shape)
 
     def call(self, inputs, **kwargs):
         return self._norm(inputs, self.g, self.b, axis=[-1])
@@ -91,13 +95,12 @@ class Conv1D(Model):
     def build(self, input_shape):
         self.w = self.add_weight(name='w', shape=[self.rf, self.nx, self.nf], dtype=tf.float32,
                                  initializer=tf.keras.initializers.random_normal(stddev=0.02))
-        self.b = self.add_weight(name="b", shape=[self.nf], initializer=tf.keras.initializers.constant(0))
+        self.b = self.add_weight(name="b", shape=[self.nf], dtype = tf.float32, initializer=tf.keras.initializers.constant(0))
         super(Conv1D, self).build(input_shape = input_shape)
 
     def call(self, inputs, **kwargs):
         if self.rf == 1:
-            c = tf.reshape(tf.matmul(tf.reshape(inputs, [-1, self.nx]), tf.reshape(self.w, [-1, self.nf])) + self.b,
-                           shape_list(inputs)[:-1] + [self.nf])
+            c = tf.reshape(tf.matmul(tf.reshape(inputs, [-1, self.nx]), tf.reshape(self.w, [-1, self.nf])) + self.b, shape_list(inputs)[:-1] + [self.nf])
         else:
             c = tf.nn.conv1d(value=inputs, filters=self.w, stride=1, padding='VALID') + self.b
         return c
@@ -217,11 +220,12 @@ class Block(Model):
         self.attn_pdrop = attn_pdrop
         self.resid_pdrop = resid_pdrop
         self.train = train
-
-        self.attn = Attention("/attn", n_embd, n_embd, n_head, attn_pdrop, resid_pdrop, train, scale)
-        self.norm1 = Norm("/ln_1", n_embd)
-        self.mlp = MLP("/mlp", n_embd, 4 * n_embd, afn, resid_pdrop, train)
-        self.norm2 = Norm("/ln_2", n_embd)
+        self.afn = afn
+        self.scale = scale
+        self.attn = Attention("/attn", self.n_embd, self.n_embd, self.n_head, self.attn_pdrop, self.resid_pdrop, self.train, self.scale)
+        self.norm1 = Norm("/ln_1", self.n_embd)
+        self.mlp = MLP("/mlp", self.n_embd, 4 * self.n_embd, self.afn, self.resid_pdrop, self.train)
+        self.norm2 = Norm("/ln_2", self.n_embd)
 
     def call(self, inputs):
         a = self.attn(inputs)
@@ -232,16 +236,16 @@ class Block(Model):
 
 class EmbeddingLayer(keras.layers.Layer):
     def __init__(self, name, n_vocab, n_ctx=128, n_embd=768, stddev=0.02, trainable=True):
-        super().__init__(trainable = trainable)
+        super().__init__(name = name, trainable = trainable)
         self.n_vocab = n_vocab
         self.n_ctx = n_ctx
         self.n_embd = n_embd
         self.stddev = stddev
     
     def build(self, input_shape):
-        self.we = self.add_weight(name = "we", shape = (self.n_ctx + self.n_vocab, self.n_embd),
-                                  initializer = tf.random_normal_initializer(stddev=self.stddev))
-        super(EmbeddingLayer, self).build(input_shape = input_shape)
+        self.we = self.add_weight(name = "we", shape = (self.n_ctx + self.n_vocab, self.n_embd), dtype = tf.float32,
+                                 initializer = tf.random_normal_initializer(stddev=self.stddev))
+        super().build(input_shape = input_shape)
         
     def call(self, inputs):
         return tf.reduce_sum(tf.gather(self.we, inputs), 2)
@@ -283,8 +287,7 @@ class Transformer(Model):
 
         self.transformer_stack = Sequential()
         for layer in range(n_layer):
-            self.transformer_stack.add(
-                Block("h", n_vocab, n_ctx, n_embd, n_head, attn_pdrop, resid_pdrop, afn, train, scale))
+            self.transformer_stack.add(Block("h", n_vocab, n_ctx, n_embd, n_head, attn_pdrop, resid_pdrop, afn, train, scale))
 
     def call(self, inputs):
         tokens = tf.reshape(inputs[0], [-1, self.n_ctx, 2])
