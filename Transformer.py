@@ -306,6 +306,16 @@ class Transformer(Model):
             self.transformer_stack.add(Block("h", n_vocab, n_ctx, n_embd, n_head, attn_pdrop, resid_pdrop, afn, train, scale))
 
     def call(self, inputs):
+        """
+        Args:
+            inputs: it is list of ID and positions of tokens and their mask.
+                    tokens shape = (batch size, context length, 2 (IDs and positions))
+                    masks shape = (batch size, context length)
+            
+        Returns:
+            logits: shape = (batch size, context length, vocab size)
+            losses: shape = (batch size, )
+        """
         tokens = tf.reshape(inputs[0], [-1, self.n_ctx, 2])
         masks = tf.reshape(inputs[1], [-1, self.n_ctx])
         hidden1 = self.embed(tokens)
