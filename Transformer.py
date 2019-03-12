@@ -181,6 +181,19 @@ class Attention(Model):
 
 class MLP(Model):
     def __init__(self, name, n_embd, n_state, afn, resid_pdrop, train):
+        """
+        The multilayer perceptron is a class of feedforward.
+        This module can be used as an one-dimensional convolutional neural network
+        or as a fully-connected neural network.
+        
+        Args:
+            name: The name of the model
+            n_embd: Embeddings dimension
+            n_state: ?
+            resid_pdrop: The dropout probability for ?
+            afn: The non-linear activation function in MLP
+            train: It is a boolean which is true for training model, false for eval model (to control dropout)
+        """
         super().__init__(name = name)
         self.n_embd = n_embd
         self.n_state = n_state
@@ -199,6 +212,9 @@ class MLP(Model):
 class Block(Model):
     def __init__(self, name, n_vocab, n_ctx, n_embd, n_head, attn_pdrop, resid_pdrop, afn, train, scale):
         """
+          The Transformer block is the core of the model.
+          It contains attention layer, layer normalization and multilayer perceptron (i.e. feedforward)
+          
           Args:
             name: The name of the model
             n_vocab: Size of the vocabulary
@@ -256,7 +272,7 @@ class Transformer(Model):
         """
           This is the transformer model in
           'https://s3-us-west-2.amazonaws.com/openai-assets/research-covers/language-unsupervised/language_understanding_paper.pdf'
-          fine-tuned for language-model
+          fine-tuned for language-model.
           
           Args:
             name: The name of the model
