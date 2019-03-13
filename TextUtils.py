@@ -1,3 +1,4 @@
+import numpy as np
 import re
 import ftfy
 import json
@@ -90,7 +91,7 @@ class TextEncoder(object):
         self.cache[token] = word
         return word
 
-    def call(self, texts, verbose = True):
+    def __call__(self, texts, verbose = True):
         texts_tokens = []
         
         if verbose:
@@ -126,7 +127,7 @@ def transform_texts(texts, n_ctx, n_vocab, encoder = None):
     if encoder == None:
         ENCODER_PATH = 'model/encoder_bpe_40000.json'
         BPE_PATH = 'model/vocab_40000.bpe'
-        encoder = extEncoder(ENCODER_PATH, BPE_PATH)
+        encoder = TextEncoder(ENCODER_PATH, BPE_PATH)
         
     tokens = encoder(texts, verbose = False)
     n_batch = len(tokens)
