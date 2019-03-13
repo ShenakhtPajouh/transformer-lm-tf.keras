@@ -73,4 +73,3 @@ def assign_to_gpu(gpu=0, ps_dev="/device:CPU:0"):
         else:
             return "/gpu:%d" % gpu
     return _assign
-  
